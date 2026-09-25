@@ -358,6 +358,82 @@ public def boxRelu (B : FlatBox α) : FlatBox α :=
     lo := Tensor.mapSpec (fun x => Activation.Math.reluSpec (α := α) x) B.lo
     hi := Tensor.mapSpec (fun x => Activation.Math.reluSpec (α := α) x) B.hi }
 
+/-! ### MinMax
+
+`OpKind.minMax` pairs adjacent entries along a channel axis and replaces each
+pair by its minimum and its maximum.  The engines here work on flattened
+vectors, but nothing is lost: the node carries both its `outShape` and its
+`channelAxis`, so the pairing is recovered as a stride and an extent.
+
+`minMaxFlatStride` is the product of the extents *after* the channel axis, and
+`minMaxFlatExtent` the extent *at* it.  A flat index `i` then sits at channel
+`(i / stride) % extent`, and pairs with `i ± stride`.
+-/
+
+/-- The extent of `s` at `axis`, or `0` if the axis is out of range. -/
+public def minMaxFlatExtent (axis : Nat) (s : Shape) : Nat :=
+  (Spec.Shape.toList s)[axis]?.getD 0
+
+/-- The flat stride of `axis` in `s`: the product of the extents after it. -/
+public def minMaxFlatStride (axis : Nat) (s : Shape) : Nat :=
+  ((Spec.Shape.toList s).drop (axis + 1)).foldl (· * ·) 1
+
+/-- The flat index paired with `i`.  Degenerate parameters make it its own
+partner, which leaves the corresponding entry unchanged. -/
+public def minMaxFlatPartner (stride extent i : Nat) : Nat :=
+  if stride = 0 || extent = 0 then i
+  else if ((i / stride) % extent) % 2 = 0 then i + stride else i - stride
+
+/-- Whether flat index `i` receives the *minimum* of its pair. -/
+public def minMaxFlatTakesMin (stride extent i : Nat) : Bool :=
+  stride != 0 && extent != 0 && ((i / stride) % extent) % 2 == 0
+
+/-- Interval bounds for MinMax.  Sound because `min` and `max` are monotone in
+both arguments, so the extremes of `min a b` over a pair of boxes are `min` of
+the two lower bounds and `min` of the two upper bounds, and likewise for `max`.
+
+Exact, not merely sound: every corner is attained. -/
+public def boxMinMax (stride extent : Nat) (B : FlatBox α) : FlatBox α :=
+  match B.lo, B.hi with
+  | .dim lo, .dim hi =>
+      let partner (i : Fin B.dim) : Fin B.dim :=
+        let j := minMaxFlatPartner stride extent i.val
+        if h : j < B.dim then ⟨j, h⟩ else i
+      let combine (v : Fin B.dim → Tensor α .scalar) (i : Fin B.dim) : Tensor α .scalar :=
+        match v i, v (partner i) with
+        | .scalar a, .scalar b =>
+            Tensor.scalar <|
+              if minMaxFlatTakesMin stride extent i.val then
+                (if a < b then a else b)
+              else
+                (if a < b then b else a)
+      { dim := B.dim
+        lo := Tensor.dim (combine lo)
+        hi := Tensor.dim (combine hi) }
+
+/-- The pairwise interval **hull** under the MinMax pairing: entry `i` becomes the
+hull of `i` and its partner.
+
+This is what a *derivative* passes through MinMax.  Unlike every other
+activation here, MinMax's Jacobian is not diagonal: the output at `i` is one of
+the two inputs of its pair, so a directional derivative arriving at `i` may have
+come from either.  Taking the hull of the pair therefore encloses both
+selections, whichever the actual comparison makes — and does so without needing
+to know which, so it is sound at ties too. -/
+public def boxPairHull (stride extent : Nat) (B : FlatBox α) : FlatBox α :=
+  match B.lo, B.hi with
+  | .dim lo, .dim hi =>
+      let partner (i : Fin B.dim) : Fin B.dim :=
+        let j := minMaxFlatPartner stride extent i.val
+        if h : j < B.dim then ⟨j, h⟩ else i
+      { dim := B.dim
+        lo := Tensor.dim fun i =>
+          match lo i, lo (partner i) with
+          | .scalar a, .scalar b => Tensor.scalar (if a < b then a else b)
+        hi := Tensor.dim fun i =>
+          match hi i, hi (partner i) with
+          | .scalar a, .scalar b => Tensor.scalar (if a < b then b else a) }
+
 /-- Componentwise absolute value bounds. Soundly encloses `abs` over each interval component. -/
 def boxAbs (B : FlatBox α) : FlatBox α :=
   match B.lo, B.hi with

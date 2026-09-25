@@ -132,11 +132,19 @@ private def runFirstDerivativeWithSeed
           else drs
         | _, _ => drs
       | _ => drs
-    -- MinMax: no derivative enclosure is produced.  Its derivative is a data-dependent selection
-    -- (which of a pair is the minimum), and this engine works on `FlatBox`, which has lost the
-    -- channel axis the pairing is defined over.  Leaving the entry unset is this function's
-    -- convention for a node it cannot differentiate: no bound is asserted, rather than a wrong one.
-    | .minMax _ => drs
+    | .minMax channelAxis =>
+      -- MinMax's Jacobian is not diagonal: the output at `i` is one of its pair, so the arriving
+      -- derivative may have come from either.  The hull of the pair encloses both selections
+      -- without needing to know which was taken, so it is sound at ties as well.
+      match node.parents with
+      | #[p1] =>
+        match drs[p1]! with
+        | some dIn =>
+          let stride := minMaxFlatStride channelAxis node.outShape
+          let extent := minMaxFlatExtent channelAxis node.outShape
+          drs.set! id (some (boxPairHull (α := α) stride extent dIn))
+        | none => drs
+      | _ => drs
     | .relu =>
       match node.parents with
       | #[p1] =>
@@ -583,7 +591,17 @@ def runMixedSecondDerivative (g : Graph) (ps : ParamStore α)
           | _, _, _, _ => d2s
         | _, _, _, _, _, _, _, _ => d2s
       | _ => d2s
-    | .minMax _ => d2s
+    | .minMax channelAxis =>
+      -- Same argument one order up: the second derivative arriving at `i` is one of the pair's.
+      match node.parents with
+      | #[p1] =>
+        match d2s[p1]! with
+        | some d2In =>
+          let stride := minMaxFlatStride channelAxis node.outShape
+          let extent := minMaxFlatExtent channelAxis node.outShape
+          d2s.set! id (some (boxPairHull (α := α) stride extent d2In))
+        | none => d2s
+      | _ => d2s
     | .relu =>
       match node.parents with
       | #[p1] =>
