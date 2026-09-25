@@ -157,6 +157,10 @@ def propagateCROWNNode
     match ibp[id]! with
     | some B => bounds.set! id (some (boundsConst (α := α) ctx.inputDim B.dim B.lo B.hi))
     | none => bounds
+  -- MinMax: no bound is produced.  It would be the checked IBP enclosure, as ReLU's is above, but
+  -- this engine's IBP pass does not produce one either -- `FlatBox` has lost the channel axis the
+  -- pairing is defined over.  Leaving the entry unset asserts nothing, rather than something wrong.
+  | .minMax _ => bounds
   | .exp | .log | .inv | .sigmoid | .tanh =>
     -- Executable nonlinear bounds come from the directed IBP pass. Turning that box into a
     -- constant affine form is less precise than an analytic relaxation, but it does not recompute

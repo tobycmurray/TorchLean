@@ -769,6 +769,10 @@ private def backwardNode (dir : BackwardDir)
           | some cadd => addConstant (α := α) dir st cadd
           | none => st.fail
         | none => st.fail
+    -- MinMax: fail rather than pass anything through.  The value pass produces no box for it
+    -- (`FlatBox` has lost the channel axis the pairing is defined over), so there is nothing to
+    -- consume; `st.fail` is this engine's way of saying no objective bound could be derived.
+    | .minMax _ => st.fail
     | .relu | .exp | .log | .inv | .sigmoid | .tanh | .softmax _ =>
       -- The value pass has already applied the scalar backend's directed nonlinear capabilities.
       -- The default backward pass consumes that box rather than rebuilding a relaxation with

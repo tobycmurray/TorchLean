@@ -161,6 +161,9 @@ def inferNodeOutShape (n : Node) (parentShapes : Array Shape) : Except String Sh
         (← expectUnaryParent "batch_norm_eval" parentShapes)
   | .relu | .tanh | .sigmoid | .exp | .log | .inv | .sin | .cos =>
       expectUnaryParent n.kind.tag parentShapes
+  | .minMax channelAxis =>
+      let s ← expectUnaryParent "min_max" parentShapes
+      OpContracts.checkMinMaxAxis channelAxis s *> pure s
   | .softmax axis =>
       let s ← expectUnaryParent "softmax" parentShapes
       OpContracts.checkAxisValid axis s *> pure s

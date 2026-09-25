@@ -177,6 +177,12 @@ inductive OpKind where
       -- statistics live in an external store keyed by node id.
   | relu | tanh | sigmoid | exp | log | sin | cos
       -- Common elementwise activations / nonlinearities.
+  | minMax (channelAxis : Nat)
+      -- MinMax (a.k.a. MaxMin): pair adjacent entries along `channelAxis` and replace each pair
+      -- by its minimum and its maximum, smaller first. Anil-Lucas-Grosse, ICML 2019; the standard
+      -- activation for Lipschitz-constrained training, where ReLU loses gradient norm.
+      -- Not pointwise, and not expressible from the other ops: none of them selects or permutes
+      -- *within* an axis. The axis extent must be even.
   | softmax (axis : Nat)
       -- Softmax along an axis.
   | hardMaskedSoftmax (mask : HardMask)
@@ -246,6 +252,7 @@ def metadata : OpKind → OpMetadata
   | .linear => ⟨"linear", ⟨1, some 1⟩⟩
   | .conv .. => ⟨"conv", ⟨1, some 1⟩⟩
   | .batchNormEval .. => ⟨"batch_norm_eval", ⟨1, some 1⟩⟩
+  | .minMax .. => ⟨"min_max", ⟨1, some 1⟩⟩
   | .relu => ⟨"relu", ⟨1, some 1⟩⟩
   | .tanh => ⟨"tanh", ⟨1, some 1⟩⟩
   | .sigmoid => ⟨"sigmoid", ⟨1, some 1⟩⟩
@@ -311,6 +318,7 @@ def describe : OpKind → String
   | .conv config => s!"conv(config={repr config}, payload=node_id)"
   | .batchNormEval channelAxis channels =>
       s!"batch_norm_eval(channelAxis={channelAxis}, channels={channels}, payload=node_id)"
+  | .minMax channelAxis => s!"min_max(channelAxis={channelAxis})"
   | .relu => "relu"
   | .tanh => "tanh"
   | .sigmoid => "sigmoid"

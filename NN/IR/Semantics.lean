@@ -739,6 +739,11 @@ def evalNode
             s!"IR eval: node {i}: batch_norm_eval outShape mismatch: " ++
               s!"computed={repr y.shape}, declared={repr n.outShape}"
         pure y
+    | .minMax channelAxis => do
+        let pId ← unaryParentId i n
+        let p ← expectShape (α := α) (expected := n.outShape) (← getParent pId)
+        pure (Spec.SomeTensor.mk (α := α) n.outShape
+          (Activation.minMaxAxisSpec (α := α) channelAxis p))
     | .relu => do
         let pId ← unaryParentId i n
         let p ← expectShape (α := α) (expected := n.outShape) (← getParent pId)

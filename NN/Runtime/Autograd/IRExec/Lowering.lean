@@ -104,6 +104,11 @@ def buildFrom
       | .flatten s => lowerShape lowering (.flatten s)
       | .concat axis => lowerShape lowering (.concat axis)
       | .transpose axis₁ axis₂ => lowerShape lowering (.transpose axis₁ axis₂)
+      -- MinMax is a specification-layer op for verification and has no autograd lowering: its
+      -- derivative is a data-dependent selection, and nothing in the training stack emits it.
+      -- Reject explicitly, per this module's contract of naming the first unsupported node.
+      | .minMax channelAxis =>
+          throw s!"IRExec lowering: node {i}: min_max(channelAxis={channelAxis}) has no autograd lowering"
     let st' : State α inShape :=
       ⟨ss ++ [τ], .snoc (ss := ss) gd nodeData⟩
     buildFrom (α := α) (g := g) (payload := payload) (inShape := inShape) (i := i + 1) st'

@@ -287,6 +287,7 @@ def parseOpKind (ctx : String) (outShape : Shape) (o : StateDict) : Except Strin
           outChannels := ← natField ctx "out_channels" o })
   | "batch_norm_eval" =>
       pure (.batchNormEval (← natField ctx "channel_axis" o) (← natField ctx "channels" o))
+  | "min_max" => pure (.minMax (← natField ctx "channel_axis" o))
   | "relu" => pure .relu
   | "tanh" => pure .tanh
   | "sigmoid" => pure .sigmoid

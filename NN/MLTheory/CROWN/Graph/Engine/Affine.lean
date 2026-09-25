@@ -178,6 +178,12 @@ def propagateAffineNode
     match ibp[id]! with
     | some B => affs.set! id (some (upperConstAffine (α := α) ctx.inputDim B))
     | none => affs
+  -- MinMax: no affine relaxation is produced.  One exists in principle -- min and max of a pair
+  -- are piecewise linear, so each admits sound linear upper and lower bounds over an interval --
+  -- but this engine works on `FlatAffine`, which has lost the channel axis the pairing is defined
+  -- over.  Leaving the entry unset is this function's convention for a node it cannot relax: no
+  -- bound is asserted, rather than an unsound one.
+  | .minMax _ => affs
   | .linear =>
     match node.parents with
     | #[p1] =>

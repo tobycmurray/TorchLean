@@ -13,6 +13,7 @@ public import NN.Tests.API.SelfSupervised.BlockMask
 public import NN.Tests.API.GradientAccumulation
 public import NN.Tests.Backend.Profile
 public import NN.Tests.GraphSpec.Generality
+public import NN.Tests.IR.MinMax
 public import NN.Tests.IR.ShapeContracts
 public import NN.Tests.MLTheory.CROWNOperators
 public import NN.Tests.MLTheory.CROWNSoundnessGuardrails

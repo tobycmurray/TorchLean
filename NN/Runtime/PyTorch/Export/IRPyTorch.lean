@@ -484,6 +484,12 @@ private def emitForwardBody (g : NN.IR.Graph) (ps : ParamStore Float) (bindings 
           , indentFour s!"_y = F.{fn}(_x, kernel_size={kernel}, stride={stride}, padding={padding}, count_include_pad=True)"
           , indentFour s!"v{id} = _y.reshape((*_prefix, *_y.shape[2:]))"
           ]
+    -- MinMax has no emitter.  It is expressible in PyTorch -- unflatten the channel axis into
+    -- pairs, take min and max along the new axis, stack and re-flatten -- but this module's output
+    -- is executed against the Lean semantics as a differential check, and emitting a form that has
+    -- not itself been run would put the wrong side of that check beyond suspicion.  Refuse instead.
+    | .minMax channelAxis =>
+        throw s!"IR→PyTorch: node {id}: min_max(channelAxis={channelAxis}) has no emitter yet"
     | .relu =>
         let p ← expectUnary id n.parents
         lines := lines ++ #[indentFour s!"v{id} = torch.relu(v{p})"]

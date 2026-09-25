@@ -139,6 +139,12 @@ def propagateIBPNode (nodes : Array Node) (ps : ParamStore α) (boxes : Array (O
     match node.parents with
     | #[p1] => boxes.set! id (some (boxRelu (get! p1)))
     | _ => boxes
+  -- MinMax: no box is produced.  Interval propagation through it is straightforward in principle
+  -- -- the pair (min, max) of two intervals is ([min lo, min hi], [max lo, max hi]) -- but this
+  -- engine works on `FlatBox`, which has lost the channel axis the pairing is defined over, so
+  -- there is nothing here to pair along.  Leaving the entry unset is the same convention this
+  -- function uses for a node it cannot interpret: no bound is asserted, rather than a wrong one.
+  | .minMax _ => boxes
   | .linear =>
     match node.parents with
     | #[p1] =>

@@ -61,6 +61,22 @@ def checkAxisValid (axis : Nat) (s : Shape) : Except String Unit := do
   else
     throw s!"invalid axis {axis} for rank {Spec.Shape.rank s}"
 
+/-- Check that the axis a MinMax pairs along exists and has even extent.
+
+An odd extent would leave one entry unpaired.  `Activation.minMaxOuterSpec` is
+total there — it leaves the entry alone — but a network whose channel count is
+odd is a modelling mistake rather than something to interpret silently, so the
+graph is rejected. -/
+def checkMinMaxAxis (axis : Nat) (s : Shape) : Except String Unit := do
+  let _ ← checkAxisValid axis s
+  match (Spec.Shape.toList s)[axis]? with
+  | none => throw s!"min_max: invalid axis {axis} for rank {Spec.Shape.rank s}"
+  | some extent =>
+      if extent % 2 = 0 then
+        pure ()
+      else
+        throw s!"min_max: axis {axis} has odd extent {extent}; MinMax pairs entries up"
+
 /-- Check that a natural-number op parameter is nonzero. -/
 def checkPositive (tag param : String) (n : Nat) : Except String Unit := do
   if n = 0 then

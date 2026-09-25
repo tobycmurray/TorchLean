@@ -287,6 +287,64 @@ def tanhSpec {s : Shape} : Tensor α s → Tensor α s :=
 def reluSpec {α : Type} [Zero α] [Max α] {s : Shape} (t : Tensor α s) : Tensor α s :=
   mapSpec Activation.Math.reluSpec t
 
+/-!
+### MinMax
+
+`MinMax` pairs adjacent entries along an axis and replaces each pair by its
+minimum and its maximum, the smaller going to the lower index.  It is the
+activation Lipschitz-constrained training uses in place of ReLU — see Anil,
+Lucas and Grosse, *Sorting out Lipschitz function approximation* (ICML 2019),
+where it appears as `MaxMin`, and the GloRo models built on it.
+
+Unlike every other activation in this file it is **not** pointwise: it is a
+width-2 sorting network, so it cannot be expressed as `mapSpec f`.  It is also
+not expressible in terms of the other IR operations, because none of them can
+select or permute *within* an axis.
+
+The pairing is adjacent-and-non-overlapping: `0↔1`, `2↔3`, and so on.  An odd
+trailing entry has no partner and is left alone, which keeps the function total
+at every extent; the IR shape check rejects an odd axis, so that branch is
+unreachable from a well-formed graph.
+-/
+
+/-- The entry paired with `i` when an axis of extent `n` is cut into adjacent
+pairs.  An odd trailing entry is its own partner. -/
+def minMaxPartner (n i : Nat) : Nat :=
+  if i % 2 = 0 then (if i + 1 < n then i + 1 else i) else i - 1
+
+theorem minMaxPartner_lt {n i : Nat} (h : i < n) : minMaxPartner n i < n := by
+  unfold minMaxPartner
+  split
+  · split <;> omega
+  · omega
+
+/-- Tensor-level MinMax along the **outermost** axis: entry `2j` becomes the
+minimum of the pair `(2j, 2j+1)` and entry `2j+1` its maximum, elementwise over
+whatever shape sits inside the axis.
+
+The IR lifts this to an arbitrary channel axis with `Spec.mapEach`, exactly as
+the convolution does. -/
+def minMaxOuterSpec {α : Type} [Min α] [Max α] {n : Nat} {s : Shape}
+    (t : Tensor α (.dim n s)) : Tensor α (.dim n s) :=
+  let f := Tensor.dimEquiv n s t
+  Tensor.dim fun i =>
+    let j : Fin n := ⟨minMaxPartner n i.val, minMaxPartner_lt i.isLt⟩
+    if i.val % 2 = 0 then
+      map2Spec (fun a b => min a b) (f i) (f j)
+    else
+      map2Spec (fun a b => max a b) (f j) (f i)
+
+/-- MinMax along an arbitrary axis: recurse through the `channelAxis` leading
+axes and pair along the one that is then outermost.  Out-of-range axes and a
+rank-0 tensor are the identity, which the IR shape check rules out. -/
+def minMaxAxisSpec {α : Type} [Min α] [Max α] :
+    (channelAxis : Nat) → {s : Shape} → Tensor α s → Tensor α s
+  | 0, .dim _ _, t => minMaxOuterSpec t
+  | 0, .scalar, t => t
+  | _ + 1, .scalar, t => t
+  | k + 1, .dim _ _, .dim f => .dim fun i => minMaxAxisSpec k (f i)
+
+
 /-- Tensor-level sigmoid (pointwise). -/
 def sigmoidSpec {s : Shape} (t : Tensor α s) : Tensor α s :=
   mapSpec Activation.Math.sigmoidSpec t

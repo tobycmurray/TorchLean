@@ -45,6 +45,10 @@ def op? : NN.IR.OpKind → Option BackendOp
   | .inv => some .inv
   | .maxElem => some .max
   | .minElem => some .min
+  -- MinMax has no backend capsule: it is a specification-layer op for verification, and there is
+  -- no kernel to dispatch to.  `none` makes planning fail at the backend boundary, which is the
+  -- documented behaviour for an op with no capsule, rather than bucketing it under a broader tag.
+  | .minMax .. => none
   | .relu => some .relu
   | .tanh => some .tanh
   | .sigmoid => some .sigmoid

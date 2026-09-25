@@ -132,6 +132,11 @@ private def runFirstDerivativeWithSeed
           else drs
         | _, _ => drs
       | _ => drs
+    -- MinMax: no derivative enclosure is produced.  Its derivative is a data-dependent selection
+    -- (which of a pair is the minimum), and this engine works on `FlatBox`, which has lost the
+    -- channel axis the pairing is defined over.  Leaving the entry unset is this function's
+    -- convention for a node it cannot differentiate: no bound is asserted, rather than a wrong one.
+    | .minMax _ => drs
     | .relu =>
       match node.parents with
       | #[p1] =>
@@ -578,6 +583,7 @@ def runMixedSecondDerivative (g : Graph) (ps : ParamStore α)
           | _, _, _, _ => d2s
         | _, _, _, _, _, _, _, _ => d2s
       | _ => d2s
+    | .minMax _ => d2s
     | .relu =>
       match node.parents with
       | #[p1] =>
