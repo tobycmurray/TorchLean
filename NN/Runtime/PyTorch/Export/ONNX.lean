@@ -192,6 +192,14 @@ def generateONNXBridgeScript (opts : ONNXBridgeOptions := {}) : String :=
     , indentFour "padding = pads[:spatial_rank]"
     , indentFour "padding_after = pads[spatial_rank:]"
     , indentFour "extra = {\"spatial_rank\": spatial_rank, \"kernel\": kernel, \"stride\": strides, \"padding\": padding, \"padding_after\": padding_after, \"dilation\": dilations, \"groups\": group, \"channel_axis\": 0, \"in_channels\": in_c, \"out_channels\": out_c}"
+    -- Record which constants hold this convolution's parameters.  `OpKind.conv` has arity one, so
+    -- unlike `matmul` the weight cannot be a parent; without these the link from a conv node to
+    -- its weight is nominal, and a consumer has to guess.
+    , indentFour "extra[\"weight\"] = name_to_id[w_name]"
+    , indentFour "if len(input_names) > 2 and input_names[2]:"
+    , indentEight "extra[\"bias\"] = name_to_id[input_names[2]]"
+    , indentFour "if len(input_names) > 3:"
+    , indentEight "raise RuntimeError(\"Conv: expected at most data, weight and bias inputs\")"
     , indentFour "if include_debug: extra.update(_debug_extra(node))"
     , indentFour "if len(x_shape) == spatial_rank + 1:"
     , indentEight "add_node(\"conv\", out_name, [name_to_id[x_name]], out_shape, extra)"
