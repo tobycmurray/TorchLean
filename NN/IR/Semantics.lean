@@ -68,6 +68,20 @@ namespace Graph
 /-! ## Permutation lowering -/
 
 /--
+Bubble the axis now sitting at index `k` down to index `i`, recording each adjacent swap.
+
+Structural in `k`, which is the point: written as the `while k > i` loop it replaces, this
+elaborates to `Loop.forIn` and has no equation lemmas, so `permuteSomeTensor` can be *run* but not
+reasoned about -- a consumer cannot prove what a `.transpose` node denotes even at a literal rank.
+-/
+def bubbleDownTo (i : Nat) : Nat → List Nat → List Nat → List Nat × List Nat
+  | 0, cur, swapsRev => (cur, swapsRev)
+  | k + 1, cur, swapsRev =>
+      if i < k + 1 then
+        bubbleDownTo i k (Spec.Shape.swapAdjacentAxes cur k) (k :: swapsRev)
+      else (cur, swapsRev)
+
+/--
 Compute a sequence of adjacent swaps that realizes a target permutation.
 
 This is used to implement `.permute` by repeatedly applying `swapAdjacentAtDepth`, which is already
@@ -84,11 +98,9 @@ def swapDepthsForPerm (perm : Array Nat) (r : Nat) : Except String (Array Nat) :
         match cur.findIdx? (· == target) with
         | none => throw s!"permute: internal error: target axis {target} not in current axes {cur}"
         | some j =>
-            let mut k := j
-            while k > i do
-              swapsRev := (k - 1) :: swapsRev
-              cur := Spec.Shape.swapAdjacentAxes cur (k - 1)
-              k := k - 1
+            let (cur', swapsRev') := bubbleDownTo i j cur swapsRev
+            cur := cur'
+            swapsRev := swapsRev'
   pure swapsRev.reverse.toArray
 
 /--
