@@ -458,74 +458,59 @@ def evalConcat {α : Type} [Context α] [DecidableEq Shape]
     | _ =>
         throw s!"IR eval: node {i}: concat expects rank≥1 outShape, got {repr n.outShape}"
   else
-  let permFront ←
-    match OpContracts.permMoveAxisToFront axis n.outShape with
-    | .ok perm => pure perm
-    | .error msg => throw s!"IR eval: node {i}: concat: {msg} ({n.summary})"
-  let permBack ←
-    match OpContracts.inversePerm permFront with
-    | .ok perm => pure perm
-    | .error msg => throw s!"IR eval: node {i}: concat: {msg} ({n.summary})"
-  let outPermShape ←
-    match Spec.Shape.permute? n.outShape permFront.toList with
-    | some s => pure s
-    | none =>
-        throw <|
-          s!"IR eval: node {i}: concat: internal error (invalid permutation for " ++
-            s!"outShape) ({n.summary})"
-  let parentsPerm : Array (Spec.SomeTensor α) ←
-    parents.mapM (fun pv => do
-      match permuteSomeTensor (α := α) pv permFront with
-      | .ok v => pure v
-      | .error msg => throw s!"IR eval: node {i}: concat: {msg} ({n.summary})")
-  match outPermShape with
-  | Shape.dim nOut rest =>
-      let toSigma (pv : Spec.SomeTensor α) : Except String (Sigma fun n => Tensor α (Shape.dim n rest))
-        := do
-        match pv with
-        | ⟨Shape.dim nP restP, t⟩ =>
-            if hRest : restP = rest then
-              let t' : Tensor α (Shape.dim nP rest) := by
-                simpa [hRest] using t
-              pure ⟨nP, t'⟩
+  -- The axis is not the leading one.  `concatAxisSpec` already takes an arbitrary
+  -- *leading* shape, so the requested axis can be served directly: view the declared
+  -- shape as `leading ++ [nOut] ++ suffix` and fold the primitive at that `leading`.
+  -- This replaces a permute-concat-permute sandwich, which could be run but not
+  -- reasoned about: a consumer could not say what a concat node denotes at any axis
+  -- but zero, because `permuteSomeTensor`'s lowering sat in the way.
+  match hsplit : Spec.Shape.splitAtAxis axis n.outShape with
+  | none =>
+      throw <|
+        s!"IR eval: node {i}: concat: outShape {repr n.outShape} has no axis {axis} " ++
+          s!"({n.summary})"
+  | some (leading, nOut, suffix) =>
+      let toSigma (pv : Spec.SomeTensor α) :
+          Except String (Sigma fun k => Tensor α (leading.concat (.dim k suffix))) := do
+        match hp : Spec.Shape.splitAtAxis axis pv.shape with
+        | none =>
+            throw <|
+              s!"IR eval: node {i}: concat: parent shape {repr pv.shape} has no axis {axis}"
+        | some (l, k, sfx) =>
+            if hl : l = leading then
+              if hs : sfx = suffix then
+                let hsh : pv.shape = leading.concat (.dim k suffix) := by
+                  rw [← Spec.Shape.splitAtAxis_concat axis pv.shape l sfx k hp, hl, hs]
+                pure ⟨k, hsh ▸ pv.tensor⟩
+              else
+                throw <|
+                  s!"IR eval: node {i}: concat: parent tail mismatch: {repr sfx} vs " ++
+                    s!"{repr suffix}"
             else
               throw <|
-                s!"IR eval: node {i}: concat: permuted tail mismatch: {repr restP} vs " ++
-                  s!"{repr rest}"
-        | ⟨_, _⟩ =>
-            throw s!"IR eval: node {i}: concat expects rank≥1 parents, got {repr pv.shape}"
-      let sigs ← parentsPerm.mapM toSigma
+                s!"IR eval: node {i}: concat: parent leading mismatch: {repr l} vs " ++
+                  s!"{repr leading}"
+      let sigs ← parents.mapM toSigma
       match sigs[0]? with
       | none =>
           throw s!"IR eval: node {i}: concat internal error"
       | some s0 =>
-          let outSigma :=
-            (sigs.extract 1).foldl
+          match (sigs.extract 1).foldl
               (fun acc nxt =>
                 match acc, nxt with
                 | ⟨n1, t1⟩, ⟨n2, t2⟩ =>
-                    ⟨n1 + n2, Tensor.concatAxisSpec .scalar (α := α) (n := n1) (m := n2)
-                      (suffix := rest)
-                      t1 t2⟩)
-              s0
-          match outSigma with
+                    ⟨n1 + n2, Tensor.concatAxisSpec leading (α := α) (n := n1) (m := n2)
+                      (suffix := suffix) t1 t2⟩)
+              s0 with
           | ⟨nSum, tSum⟩ =>
               if h : nSum = nOut then
-                let yPerm : Tensor α (Shape.dim nOut rest) := by
-                  simpa [h] using tSum
-                let outPerm : Spec.SomeTensor α := Spec.SomeTensor.mk (α := α) (Shape.dim nOut rest) yPerm
-                let out0 ←
-                  match permuteSomeTensor (α := α) outPerm permBack with
-                  | .ok v => pure v
-                  | .error msg => throw s!"IR eval: node {i}: concat: {msg} ({n.summary})"
-                let y ← expectShape (α := α) (expected := n.outShape) out0
-                pure (Spec.SomeTensor.mk (α := α) n.outShape y)
+                let hout : leading.concat (.dim nOut suffix) = n.outShape :=
+                  Spec.Shape.splitAtAxis_concat axis n.outShape leading suffix nOut hsplit
+                pure (Spec.SomeTensor.mk (α := α) n.outShape (hout ▸ h ▸ tSum))
               else
                 throw <|
                   s!"IR eval: node {i}: concat out dim mismatch: declared {nOut}, " ++
                     s!"computed {nSum}"
-  | _ =>
-      throw s!"IR eval: node {i}: concat expects rank≥1 outShape, got {repr n.outShape}"
 
 /-- Normalize a node result to the node's declared shape, rejecting inconsistent implementations. -/
 def normalizeNodeOutput {α : Type} [Context α] [DecidableEq Shape]

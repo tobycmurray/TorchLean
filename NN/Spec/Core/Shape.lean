@@ -207,6 +207,59 @@ def concat : Shape → Shape → Shape
   | .scalar, suffix => suffix
   | .dim n rest, suffix => .dim n (concat rest suffix)
 
+/-- View a shape as `leading.concat (.dim extent suffix)`, where `leading` holds
+exactly the `axis` dimensions in front of the named axis.
+
+This is what lets an operation on an arbitrary axis be written with the
+structural primitive for the *leading* axis, rather than by permuting the axis
+to the front and back again. -/
+def splitAtAxis : Nat → Shape → Option (Shape × Nat × Shape)
+  | _, .scalar => none
+  | 0, .dim n suffix => some (.scalar, n, suffix)
+  | k + 1, .dim m rest =>
+      match splitAtAxis k rest with
+      | some (leading, n, suffix) => some (.dim m leading, n, suffix)
+      | none => none
+
+/-- The split is a decomposition: putting the pieces back gives the shape. -/
+theorem splitAtAxis_concat :
+    ∀ (axis : Nat) (s leading suffix : Shape) (n : Nat),
+      splitAtAxis axis s = some (leading, n, suffix) →
+      leading.concat (.dim n suffix) = s
+  | _, .scalar, _, _, _, h => by simp [splitAtAxis] at h
+  | 0, .dim m rest, leading, suffix, n, h => by
+      simp only [splitAtAxis, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl⟩ := h
+      rfl
+  | k + 1, .dim m rest, leading, suffix, n, h => by
+      simp only [splitAtAxis] at h
+      match hrec : splitAtAxis k rest with
+      | none => rw [hrec] at h; exact absurd h (by simp)
+      | some (l, n', s') =>
+          rw [hrec] at h
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl, rfl⟩ := h
+          exact congrArg (Shape.dim m) (splitAtAxis_concat k rest l s' n' hrec)
+
+/-- A split names the extent the axis actually has. -/
+theorem splitAtAxis_extent :
+    ∀ (axis : Nat) (s leading suffix : Shape) (n : Nat),
+      splitAtAxis axis s = some (leading, n, suffix) → s.toList[axis]? = some n
+  | _, .scalar, _, _, _, h => by simp [splitAtAxis] at h
+  | 0, .dim m rest, leading, suffix, n, h => by
+      simp only [splitAtAxis, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl⟩ := h
+      rfl
+  | k + 1, .dim m rest, leading, suffix, n, h => by
+      simp only [splitAtAxis] at h
+      match hrec : splitAtAxis k rest with
+      | none => rw [hrec] at h; exact absurd h (by simp)
+      | some (l, n', s') =>
+          rw [hrec] at h
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl, rfl⟩ := h
+          simpa [toList] using splitAtAxis_extent k rest l s' n' hrec
+
 /-- Shape concatenation is associative. -/
 @[simp] theorem concat_assoc (left middle right : Shape) :
     (left.concat middle).concat right = left.concat (middle.concat right) := by
