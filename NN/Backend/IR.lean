@@ -65,6 +65,10 @@ def op? : NN.IR.OpKind → Option BackendOp
   | .broadcastTo .. => some .broadcast
   | .reduceSum .. => some .reduceSum
   | .reduceMean .. => some .reduceMean
+  -- Min/max reductions have no backend capsule for the same reason `minMax` has none: they are
+  -- specification-layer ops for verification, with no kernel to dispatch to.
+  | .reduceMin .. => none
+  | .reduceMax .. => none
   | .sum => some .reduceSum
   | .softmax .. => some .softmax
   | .hardMaskedSoftmax .. => some .hardMaskedSoftmax

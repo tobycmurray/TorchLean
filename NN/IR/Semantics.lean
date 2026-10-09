@@ -703,6 +703,36 @@ def evalNode
             let hRed := hAxis.down
             let y := Tensor.reduceMean (α := α) (s := s) axis pT hRed
             pure (Spec.SomeTensor.mk (α := α) (shapeAfterSum s axis) y)
+    | .reduceMin axis => do
+        let pId ← unaryParentId i n
+        let pV ← getParent pId
+        let s := pV.shape
+        let pT : Tensor α s := pV.tensor
+        match Spec.Shape.nonemptyAxis? (axis := axis) s with
+        | none =>
+            let msg :=
+              s!"IR eval: node {i}: reduce_min invalid axis={axis}" ++
+                s!" for shape {repr s}"
+            throw msg
+        | some hAxis =>
+            let hRed := hAxis.down
+            let y := Tensor.reduceMin (α := α) (s := s) axis pT hRed
+            pure (Spec.SomeTensor.mk (α := α) (shapeAfterSum s axis) y)
+    | .reduceMax axis => do
+        let pId ← unaryParentId i n
+        let pV ← getParent pId
+        let s := pV.shape
+        let pT : Tensor α s := pV.tensor
+        match Spec.Shape.nonemptyAxis? (axis := axis) s with
+        | none =>
+            let msg :=
+              s!"IR eval: node {i}: reduce_max invalid axis={axis}" ++
+                s!" for shape {repr s}"
+            throw msg
+        | some hAxis =>
+            let hRed := hAxis.down
+            let y := Tensor.reduceMax (α := α) (s := s) axis pT hRed
+            pure (Spec.SomeTensor.mk (α := α) (shapeAfterSum s axis) y)
     | .sum => do
         let pId ← unaryParentId i n
         let p ← getParent pId

@@ -219,6 +219,11 @@ def crownNodeSemanticsSupported (nodes : Array Node) (ps : ParamStore α) (id : 
                   axis == node.outShape.rank - 1 && parent.outShape == node.outShape
               | none => false
           | _, _ => false
+      -- No interval transfer for min/max reductions yet.  The gate must refuse them: the
+      -- propagator leaves no box, and `get!` on a missing box would hand a downstream node the
+      -- default box rather than fail.
+      | .reduceMin _ => false
+      | .reduceMax _ => false
       | _ => true
 
 /-- Whether every node in a graph is interpreted exactly by the current CROWN engine. -/

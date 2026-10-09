@@ -135,6 +135,10 @@ def propagateIBPNode (nodes : Array Node) (ps : ParamStore α) (boxes : Array (O
       | some yB => boxes.set! id (some yB)
       | none => boxes
     | _ => boxes
+  -- No interval transfer for these yet; `crownNodeSemanticsSupported` refuses a graph that
+  -- contains one, so leaving the box unset cannot be read as a bound.
+  | .reduceMin _ => boxes
+  | .reduceMax _ => boxes
   | .relu =>
     match node.parents with
     | #[p1] => boxes.set! id (some (boxRelu (get! p1)))

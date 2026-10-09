@@ -395,6 +395,7 @@ def propagateAffineNode
             else affs
           else affs
   | .abs | .sqrt | .inv | .maxElem | .minElem | .broadcastTo .. | .reduceSum .. | .reduceMean ..
+  | .reduceMin .. | .reduceMax ..
   | .tanh | .sin | .cos | .sigmoid =>
     match ibp[id]! with
     | some B => affs.set! id (some (upperConstAffine (α := α) ctx.inputDim B))

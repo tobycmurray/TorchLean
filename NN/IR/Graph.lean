@@ -162,6 +162,12 @@ inductive OpKind where
       -- Sum along an axis (axis must be valid).
   | reduceMean (axis : Nat)
       -- Mean along an axis (axis must be valid).
+  | reduceMin (axis : Nat)
+      -- Minimum along an axis (the axis must be nonempty: an empty axis has no minimum).
+      -- ONNX `ReduceMin`; PyTorch `torch.amin(x, dim=axis)`.
+  | reduceMax (axis : Nat)
+      -- Maximum along an axis (the axis must be nonempty).
+      -- ONNX `ReduceMax`; PyTorch `torch.amax(x, dim=axis)`.
   | sum
       -- Sum reduction to scalar (convenience op used by some loss/verification code paths).
   | matmul
@@ -247,6 +253,8 @@ def metadata : OpKind → OpMetadata
   | .broadcastTo .. => ⟨"broadcastTo", ⟨1, some 1⟩⟩
   | .reduceSum .. => ⟨"reduce_sum", ⟨1, some 1⟩⟩
   | .reduceMean .. => ⟨"reduce_mean", ⟨1, some 1⟩⟩
+  | .reduceMin .. => ⟨"reduce_min", ⟨1, some 1⟩⟩
+  | .reduceMax .. => ⟨"reduce_max", ⟨1, some 1⟩⟩
   | .sum => ⟨"sum", ⟨1, some 1⟩⟩
   | .matmul => ⟨"matmul", ⟨2, some 2⟩⟩
   | .linear => ⟨"linear", ⟨1, some 1⟩⟩
@@ -312,6 +320,8 @@ def describe : OpKind → String
   | .broadcastTo s₁ s₂ => s!"broadcastTo(from={repr s₁}, to={repr s₂})"
   | .reduceSum axis => s!"reduce_sum(axis={axis})"
   | .reduceMean axis => s!"reduce_mean(axis={axis})"
+  | .reduceMin axis => s!"reduce_min(axis={axis})"
+  | .reduceMax axis => s!"reduce_max(axis={axis})"
   | .sum => "sum"
   | .matmul => "matmul"
   | .linear => "linear(payload=node_id)"

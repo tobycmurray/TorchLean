@@ -130,6 +130,12 @@ def inferNodeOutShape (n : Node) (parentShapes : Array Shape) : Except String Sh
   | .reduceMean axis =>
       let s ← expectUnaryParent "reduce_mean" parentShapes
       OpContracts.checkAxisValid axis s *> pure (Tensor.shapeAfterSum s axis)
+  | .reduceMin axis =>
+      let s ← expectUnaryParent "reduce_min" parentShapes
+      OpContracts.checkAxisValid axis s *> pure (Tensor.shapeAfterSum s axis)
+  | .reduceMax axis =>
+      let s ← expectUnaryParent "reduce_max" parentShapes
+      OpContracts.checkAxisValid axis s *> pure (Tensor.shapeAfterSum s axis)
   | .sum =>
       let _ ← expectUnaryParent "sum" parentShapes
       pure .scalar

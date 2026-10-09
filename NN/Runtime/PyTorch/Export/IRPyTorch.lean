@@ -380,6 +380,12 @@ private def emitForwardBody (g : NN.IR.Graph) (ps : ParamStore Float) (bindings 
     | .reduceMean axis =>
         let p ← expectUnary id n.parents
         lines := lines ++ #[indentFour s!"v{id} = torch.mean(v{p}, dim={axis})"]
+    | .reduceMin axis =>
+        let p ← expectUnary id n.parents
+        lines := lines ++ #[indentFour s!"v{id} = torch.amin(v{p}, dim={axis})"]
+    | .reduceMax axis =>
+        let p ← expectUnary id n.parents
+        lines := lines ++ #[indentFour s!"v{id} = torch.amax(v{p}, dim={axis})"]
     | .broadcastTo _inShape outShape =>
         let p ← expectUnary id n.parents
         let shp := shapeToPyTupleString outShape

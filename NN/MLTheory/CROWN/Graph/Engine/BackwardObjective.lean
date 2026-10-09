@@ -682,7 +682,7 @@ private def backwardNode (dir : BackwardDir)
     | .randUniform _ | .bernoulliMask _ | .abs | .sqrt | .sin | .cos | .maxElem |
       .minElem | .hardMaskedSoftmax _
     | .maxPool .. | .avgPool ..
-    | .broadcastTo .. | .reduceSum .. | .reduceMean .. =>
+    | .broadcastTo .. | .reduceSum .. | .reduceMean .. | .reduceMin .. | .reduceMax .. =>
       match ibp[id]! with
       | some By =>
         match consumeObjectiveFromBox (α := α) (dir := dir) aY By with

@@ -448,7 +448,7 @@ private def runFirstDerivativeWithSeed
       | #[p1] => drs.set! id (drs[p1]!)
       | _ => drs
     | .abs | .sqrt | .inv | .maxElem | .minElem | .broadcastTo .. | .reduceSum .. | .reduceMean
-      .. =>
+      .. | .reduceMin .. | .reduceMax .. =>
       drs
     | .mseLoss => drs
     | .conv .. | .batchNormEval .. => drs
@@ -899,7 +899,7 @@ def runMixedSecondDerivative (g : Graph) (ps : ParamStore α)
       -- Leave the node unresolved until a row-wise LayerNorm Hessian enclosure is available.
       d2s
     | .abs | .sqrt | .inv | .maxElem | .minElem | .broadcastTo .. | .reduceSum .. | .reduceMean
-      .. =>
+      .. | .reduceMin .. | .reduceMax .. =>
       d2s
     | .conv .. | .batchNormEval .. => d2s
   if crownGraphSemanticsSupported (α := α) g ps then

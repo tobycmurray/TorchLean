@@ -62,7 +62,7 @@ def propagateCROWNNode
   | .randUniform _ | .bernoulliMask _ | .abs | .sqrt | .maxElem | .minElem | .sin |
     .cos | .hardMaskedSoftmax _
   | .maxPool .. | .avgPool ..
-  | .broadcastTo .. | .reduceSum .. | .reduceMean .. =>
+  | .broadcastTo .. | .reduceSum .. | .reduceMean .. | .reduceMin .. | .reduceMax .. =>
     -- Conservative fallback: use IBP box as a constant affine bound (A = 0).
     match ibp[id]! with
     | some B => bounds.set! id (some (boundsConst (α:=α) ctx.inputDim B.dim B.lo B.hi))

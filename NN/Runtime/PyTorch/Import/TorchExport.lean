@@ -268,7 +268,7 @@ def parseOpKind (ctx : String) (outShape : Shape) (o : StateDict) : Except Strin
   | "avg_pool" => pure (.avgPool (← windowConfig ctx o))
   | "broadcast_to" =>
       pure (.broadcastTo (← shapeField ctx "from_shape" o) (← shapeField ctx "to_shape" o))
-  | "reduce_sum" | "reduce_mean" =>
+  | "reduce_sum" | "reduce_mean" | "reduce_min" | "reduce_max" =>
       throw s!"PyTorch graph import: {ctx}: reduction must be lowered from its axes configuration"
   | "matmul" => pure .matmul
   | "linear" => pure .linear
@@ -519,7 +519,8 @@ def lowerValueGraph (vg : CapturedValueGraph) : Except String CapturedGraph := d
                   "supported tensor ops, or add a real semantic lowering for that operation."
           | .tensor _ =>
               throw s!"PyTorch graph import: {ctx}: getitem on a tensor value is not tensor-lowered"
-        else if raw.kind = "reduce_sum" || raw.kind = "reduce_mean" then
+        else if raw.kind = "reduce_sum" || raw.kind = "reduce_mean"
+            || raw.kind = "reduce_min" || raw.kind = "reduce_max" then
           let parentRawId ←
             match raw.parents with
             | #[p] => pure p
@@ -549,7 +550,11 @@ def lowerValueGraph (vg : CapturedValueGraph) : Except String CapturedGraph := d
             let dims := currentShape.toList
             let reducedShape := Shape.ofList (dims.take axis ++ dims.drop (axis + 1))
             let reducedId := tensorNodes.size
-            let kind := if raw.kind = "reduce_sum" then .reduceSum axis else .reduceMean axis
+            let kind :=
+              if raw.kind = "reduce_sum" then .reduceSum axis
+              else if raw.kind = "reduce_mean" then .reduceMean axis
+              else if raw.kind = "reduce_min" then .reduceMin axis
+              else .reduceMax axis
             tensorNodes := tensorNodes.push
               { id := reducedId, parents := #[currentId], kind := kind, outShape := reducedShape }
             if keepDim then

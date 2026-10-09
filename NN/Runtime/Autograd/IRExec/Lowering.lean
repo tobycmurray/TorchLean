@@ -109,6 +109,11 @@ def buildFrom
       -- Reject explicitly, per this module's contract of naming the first unsupported node.
       | .minMax channelAxis =>
           throw s!"IRExec lowering: node {i}: min_max(channelAxis={channelAxis}) has no autograd lowering"
+      -- Min/max reductions select, so their derivative is data-dependent, like `minMax`'s.
+      | .reduceMin axis =>
+          throw s!"IRExec lowering: node {i}: reduce_min(axis={axis}) has no autograd lowering"
+      | .reduceMax axis =>
+          throw s!"IRExec lowering: node {i}: reduce_max(axis={axis}) has no autograd lowering"
     let st' : State α inShape :=
       ⟨ss ++ [τ], .snoc (ss := ss) gd nodeData⟩
     buildFrom (α := α) (g := g) (payload := payload) (inShape := inShape) (i := i + 1) st'
