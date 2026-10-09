@@ -464,23 +464,23 @@ def evalConcat {α : Type} [Context α] [DecidableEq Shape]
   -- This replaces a permute-concat-permute sandwich, which could be run but not
   -- reasoned about: a consumer could not say what a concat node denotes at any axis
   -- but zero, because `permuteSomeTensor`'s lowering sat in the way.
-  match hsplit : Spec.Shape.splitAtAxis axis n.outShape with
+  match Spec.Shape.splitAtAxis? axis n.outShape with
   | none =>
       throw <|
         s!"IR eval: node {i}: concat: outShape {repr n.outShape} has no axis {axis} " ++
           s!"({n.summary})"
-  | some (leading, nOut, suffix) =>
+  | some ⟨leading, nOut, suffix, hOut⟩ =>
       let toSigma (pv : Spec.SomeTensor α) :
-          Except String (Sigma fun k => Tensor α (leading.concat (.dim k suffix))) := do
-        match hp : Spec.Shape.splitAtAxis axis pv.shape with
+          Except String (Sigma fun k => Tensor α (leading.concat (.dim k suffix))) :=
+        match Spec.Shape.splitAtAxis? axis pv.shape with
         | none =>
             throw <|
               s!"IR eval: node {i}: concat: parent shape {repr pv.shape} has no axis {axis}"
-        | some (l, k, sfx) =>
+        | some ⟨l, k, sfx, hP⟩ =>
             if hl : l = leading then
               if hs : sfx = suffix then
                 let hsh : pv.shape = leading.concat (.dim k suffix) := by
-                  rw [← Spec.Shape.splitAtAxis_concat axis pv.shape l sfx k hp, hl, hs]
+                  rw [← hP, hl, hs]
                 pure ⟨k, hsh ▸ pv.tensor⟩
               else
                 throw <|
@@ -490,6 +490,7 @@ def evalConcat {α : Type} [Context α] [DecidableEq Shape]
               throw <|
                 s!"IR eval: node {i}: concat: parent leading mismatch: {repr l} vs " ++
                   s!"{repr leading}"
+      do
       let sigs ← parents.mapM toSigma
       match sigs[0]? with
       | none =>
@@ -504,9 +505,7 @@ def evalConcat {α : Type} [Context α] [DecidableEq Shape]
               s0 with
           | ⟨nSum, tSum⟩ =>
               if h : nSum = nOut then
-                let hout : leading.concat (.dim nOut suffix) = n.outShape :=
-                  Spec.Shape.splitAtAxis_concat axis n.outShape leading suffix nOut hsplit
-                pure (Spec.SomeTensor.mk (α := α) n.outShape (hout ▸ h ▸ tSum))
+                pure (Spec.SomeTensor.mk (α := α) n.outShape (hOut ▸ h ▸ tSum))
               else
                 throw <|
                   s!"IR eval: node {i}: concat out dim mismatch: declared {nOut}, " ++

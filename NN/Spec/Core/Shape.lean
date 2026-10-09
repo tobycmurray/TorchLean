@@ -379,6 +379,23 @@ def areEqual : Shape → Shape → Bool
 instance : BEq Shape where
   beq := areEqual
 
+/-- `areEqual` decides shape equality, so the structural test is lawful.  Without
+this a caller cannot discharge the shape checks the evaluator runs: the extents
+are often variables, so `s != s` is provable but not computable. -/
+theorem areEqual_iff : ∀ s t : Shape, areEqual s t = true ↔ s = t
+  | .scalar, .scalar => by simp [areEqual]
+  | .scalar, .dim _ _ => by simp [areEqual]
+  | .dim _ _, .scalar => by simp [areEqual]
+  | .dim n1 s1, .dim n2 s2 => by
+      rw [areEqual, Bool.and_eq_true, beq_iff_eq, areEqual_iff s1 s2]
+      constructor
+      · intro h; rw [h.1, h.2]
+      · intro h; cases h; exact ⟨rfl, rfl⟩
+
+instance : LawfulBEq Shape where
+  eq_of_beq h := (areEqual_iff _ _).mp h
+  rfl := (areEqual_iff _ _).mpr rfl
+
 /-- Default inhabitant for `Shape`, used only when Lean needs a canonical fallback value. -/
 instance : Inhabited Shape where
   default := .scalar
@@ -412,6 +429,50 @@ PyTorch analogy:
 def rank : Shape → Nat
   | Shape.scalar => 0
   | Shape.dim _ rest => 1 + rank rest
+
+/-- A shape seen as `leading ++ [extent] ++ suffix`, carrying the decomposition
+proof.  Consumers match on `splitAtAxis?` rather than on `splitAtAxis`, so that
+the proof arrives without a dependent `match h : _ with` — which would otherwise
+stand between a caller and any statement about the result. -/
+structure AxisSplit (axis : Nat) (s : Shape) where
+  /-- The axes in front of the named one. -/
+  leading : Shape
+  /-- The extent of the named axis. -/
+  extent : Nat
+  /-- The axes behind the named one. -/
+  suffix : Shape
+  /-- Putting the pieces back gives the shape. -/
+  eq : leading.concat (.dim extent suffix) = s
+
+/-- `splitAtAxis` with its decomposition proof attached. -/
+def splitAtAxis? (axis : Nat) (s : Shape) : Option (AxisSplit axis s) :=
+  match h : splitAtAxis axis s with
+  | none => none
+  | some (leading, extent, suffix) =>
+      some ⟨leading, extent, suffix, splitAtAxis_concat axis s leading suffix extent h⟩
+
+/-- The split a shape built as a concatenation announces. -/
+theorem splitAtAxis?_concat (leading : Shape) (extent : Nat) (suffix : Shape) :
+    splitAtAxis? leading.rank (leading.concat (.dim extent suffix))
+      = some ⟨leading, extent, suffix, rfl⟩ := by
+  have hsplit : splitAtAxis leading.rank (leading.concat (.dim extent suffix))
+      = some (leading, extent, suffix) := by
+    induction leading with
+    | scalar => rfl
+    | dim d rest ih =>
+        show splitAtAxis (1 + rest.rank) (.dim d (rest.concat (.dim extent suffix))) = _
+        rw [Nat.add_comm]
+        simp only [splitAtAxis, ih]
+  unfold splitAtAxis?
+  split
+  · rename_i h
+    rw [hsplit] at h
+    exact absurd h (by simp)
+  · rename_i l e sfx h
+    rw [hsplit] at h
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    rfl
 
 /-- Insert a dimension at an axis, where axis `0` is outermost.
 
