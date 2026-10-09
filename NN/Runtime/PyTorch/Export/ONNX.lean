@@ -35,6 +35,16 @@ structure ONNXBridgeOptions where
   functionName : String := "export_onnx_torchlean_graph_json"
   /-- Include ONNX node names/op types in each node for debugging. -/
   includeDebugTargets : Bool := true
+  /-- Write each initializer value as its *exact* decimal rather than the
+  shortest decimal that round-trips to the same float.
+
+  A float's exact value always terminates in decimal, so this loses nothing; the
+  shortest form does, by up to half an ulp.  That matters to a consumer that
+  reads the artifact as exact rationals — the certified network is then the
+  float network rather than one within half an ulp of it — and costs only file
+  size, which is why it is the default for an adapter whose purpose is feeding a
+  verifier. -/
+  exactValues : Bool := true
 deriving Repr
 
 /--
@@ -52,11 +62,14 @@ def generateONNXBridgeScript (opts : ONNXBridgeOptions := {}) : String :=
   joinLines
     #[ "import argparse"
     , "import json"
+    , "import re"
+    , "from decimal import Decimal"
     , "from pathlib import Path"
     , "import onnx"
     , "from onnx import numpy_helper, shape_inference"
     , ""
     , "FORMAT = \"torchlean.ir.v1\""
+    , "_EXACT_MARK = \"@exact@\""
     , ""
     , "def _shape_size(shape):"
     , indentFour "n = 1"
@@ -65,7 +78,10 @@ def generateONNXBridgeScript (opts : ONNXBridgeOptions := {}) : String :=
     , indentFour "return n"
     , ""
     , "def _flat_float_values(arr):"
-    , indentFour "return [float(x) for x in arr.reshape(-1).tolist()]"
+    , (if opts.exactValues then
+         indentFour "return [_EXACT_MARK + str(Decimal(float(x))) for x in arr.reshape(-1).tolist()]"
+       else
+         indentFour "return [float(x) for x in arr.reshape(-1).tolist()]")
     , ""
     , "def _dim_value(dim):"
     , indentFour "if dim.HasField(\"dim_value\"):"
@@ -355,7 +371,11 @@ def generateONNXBridgeScript (opts : ONNXBridgeOptions := {}) : String :=
     , indentFour "if output_name not in name_to_id:"
     , indentEight "raise RuntimeError(f\"ONNX graph output {output_name} was not produced\")"
     , indentFour "artifact = {\"format\": FORMAT, \"input_id\": name_to_id[input_name], \"output_ids\": [name_to_id[output_name]], \"nodes\": nodes}"
-    , indentFour "Path(out_json_path).write_text(json.dumps(artifact, indent=2))"
+    , indentFour "text = json.dumps(artifact, indent=2)"
+    , (if opts.exactValues then
+         indentFour "text = re.sub(r'\"@exact@([^\"]*)\"', r'\\1', text)"
+       else indentFour "pass")
+    , indentFour "Path(out_json_path).write_text(text)"
     , indentFour "return artifact"
     , ""
     , "def main():"
